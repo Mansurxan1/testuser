@@ -1,42 +1,41 @@
-import { useState, useEffect } from 'react';
-import { useTestStore } from './store';
+// App.tsx
+import { useState, useEffect } from "react";
+import { useTestStore } from "./store";
 
-interface Test {
+interface Answer {
   id: number;
-  name: string;
-  answers: string; 
+  answer: string;
 }
 
 const App = () => {
-  const { fetchTests, checkTest, submitTest } = useTestStore();
-  const [testId, setTestId] = useState<number | ''>('');
-  const [selectedTest, setSelectedTest] = useState<Test | null>(null);
-  const [userAnswers, setUserAnswers] = useState<{ id: number; answer: string }[]>([]);
-  const [modalMessage, setModalMessage] = useState<string>('');
-  const [showModal, setShowModal] = useState(false);
+  const { user, selectedTest, checkResult, loading, error, fetchTestById, submitTest } =
+    useTestStore();
+  const [testId, setTestId] = useState<number | "">("");
+  const [userAnswers, setUserAnswers] = useState<Answer[]>([]);
+  const [modalMessage, setModalMessage] = useState<string>("");
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const handleFetchTest = () => {
+    if (!testId) {
+      setModalMessage("Iltimos, test ID sini kiriting!");
+      setShowMessageModal(true);
+      return;
+    }
+    fetchTestById(Number(testId));
+  };
 
   useEffect(() => {
-    fetchTests();
-  }, [fetchTests]);
-
-  const handleCheckTest = () => {
-    const { test, message } = checkTest(Number(testId));
-    if (test) {
+    if (selectedTest) {
       try {
-        const parsedAnswers = JSON.parse(test.answers) as { id: number }[];
-        setSelectedTest(test);
-        setUserAnswers(parsedAnswers.map((ans) => ({ id: ans.id, answer: '' })));
-        setShowModal(false);
+        const parsedAnswers = JSON.parse(selectedTest.answers) as { id: number }[];
+        setUserAnswers(parsedAnswers.map((ans) => ({ id: ans.id, answer: "" })));
       } catch (error) {
-        setModalMessage('Testning javoblari noto‘g‘ri formatda!');
-        setShowModal(true);
+        setModalMessage("Test javoblari noto‘g‘ri formatda!");
+        setShowMessageModal(true);
       }
-    } else {
-      setModalMessage(message);
-      setShowModal(true);
-      setSelectedTest(null);
     }
-  };
+  }, [selectedTest]);
 
   const handleAnswerChange = (index: number, value: string) => {
     const updatedAnswers = [...userAnswers];
@@ -45,75 +44,149 @@ const App = () => {
   };
 
   const handleSubmit = async () => {
-    if (!selectedTest) return;
+    if (!selectedTest || !user) {
+      setModalMessage("Test yoki foydalanuvchi ma’lumotlari topilmadi!");
+      setShowMessageModal(true);
+      return;
+    }
 
-    const result = await submitTest({
-      user_chat_id: '123456789',
-      user: 'John Doe',
+    await submitTest({
+      user_chat_id: user.chat_id,
+      user: user.full_name,
       test_id: selectedTest.id,
       answers_json: userAnswers,
-      region: 'Europe',
-      class: '11A',
+      region: user.region,
+      class: user.class,
     });
-
-    setModalMessage(result.message);
-    setShowModal(true);
+    setShowMessageModal(true);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-gray-100 p-6">
-      <h1 className="text-3xl font-extrabold text-gray-800 mb-6 text-center">Test Sahifasi</h1>
-      <div className="max-w-lg mx-auto bg-white shadow-lg rounded-lg p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-8 flex flex-col items-center">
+      <h1 className="text-4xl font-bold text-gray-900 mb-8">Test Sahifasi</h1>
+
+      <div className="w-full max-w-md mb-6">
+        <button
+          onClick={() => setShowProfileModal(true)}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200"
+        >
+          Profil
+        </button>
+      </div>
+
+      <div className="w-full max-w-md bg-white rounded-lg shadow-md p-6">
         <div className="mb-6">
           <input
             type="number"
             placeholder="Test ID kiriting"
             value={testId}
-            onChange={(e) => setTestId(Number(e.target.value) || '')}
-            className="border border-gray-300 p-3 w-full rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            onChange={(e) => setTestId(e.target.value ? Number(e.target.value) : "")}
+            className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
           />
           <button
-            onClick={handleCheckTest}
-            className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg shadow-md transition-all w-full"
+            onClick={handleFetchTest}
+            disabled={loading}
+            className="mt-4 w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
           >
-            Tekshirish
+            {loading ? "Yuklanmoqda..." : "Tekshirish"}
           </button>
         </div>
 
+        {error && (
+          <p className="text-red-600 text-center mb-4 bg-red-100 p-2 rounded-lg border border-red-300">
+            {error}
+          </p>
+        )}
+
         {selectedTest && (
           <div className="mt-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">{selectedTest.name}</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">{selectedTest.name}</h2>
             {userAnswers.map((answer, index) => (
               <div key={answer.id} className="mb-4">
-                <label className="block font-medium text-gray-700">
-                  {`Javob ${index + 1}:`}
+                <label className="block font-medium text-gray-700 mb-1">
+                  {`Savol ${index + 1} uchun javob:`}
                 </label>
                 <input
                   type="text"
                   placeholder="Javobingizni kiriting"
                   value={answer.answer}
                   onChange={(e) => handleAnswerChange(index, e.target.value)}
-                  className="border border-gray-300 p-3 w-full rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
               </div>
             ))}
             <button
               onClick={handleSubmit}
-              className="mt-4 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg shadow-md transition-all w-full"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-200"
             >
-              Yuborish
+              {loading ? "Yuborilmoqda..." : "Javoblarni Yuborish"}
             </button>
           </div>
         )}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-80">
-            <pre className="text-gray-700 whitespace-pre-wrap">{modalMessage}</pre>
+      {showProfileModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-md w-96 p-6 transform scale-95 animate-pop-in">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Foydalanuvchi Profili</h2>
+            {user ? (
+              <div className="space-y-4 text-gray-800">
+                <p className="flex items-center">
+                  <span className="font-semibold text-gray-700 w-28">Ism:</span> {user.full_name}
+                </p>
+                <p className="flex items-center">
+                  <span className="font-semibold text-gray-700 w-28">Chat ID:</span> {user.chat_id}
+                </p>
+                <p className="flex items-center">
+                  <span className="font-semibold text-gray-700 w-28">Hudud:</span> {user.region}
+                </p>
+                <p className="flex items-center">
+                  <span className="font-semibold text-gray-700 w-28">Sinf:</span> {user.class}
+                </p>
+              </div>
+            ) : (
+              <p className="text-gray-500 italic">Ma’lumotlar yuklanmoqda...</p>
+            )}
             <button
-              onClick={() => setShowModal(false)}
-              className="mt-4 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg w-full"
+              onClick={() => setShowProfileModal(false)}
+              className="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-all duration-200"
+            >
+              Yopish
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showMessageModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-md w-96 p-6 transform scale-95 animate-pop-in">
+            {checkResult ? (
+              <div>
+                <p className="text-gray-800 font-semibold mb-2">
+                  {checkResult.message}. Natija: {checkResult.score}
+                </p>
+                <ul className="text-gray-800 space-y-2">
+                  {checkResult.details.map((detail) => (
+                    <li key={detail.id}>
+                      Savol {detail.id}:{" "}
+                      <span
+                        className={
+                          detail.isCorrect ? "text-green-600" : "text-red-600"
+                        }
+                      >
+                        {detail.isCorrect ? "To‘g‘ri" : "Noto‘g‘ri"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <pre className="text-gray-800 whitespace-pre-wrap mb-4">{modalMessage}</pre>
+            )}
+            <button
+              onClick={() => setShowMessageModal(false)}
+              className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-all duration-200"
             >
               Yopish
             </button>
