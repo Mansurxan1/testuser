@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTestStore } from './store';
 
-// Test obyektining tipini e'lon qilish
 interface Test {
   id: number;
   name: string;
-  answers: string; // JSON formatidagi javoblar
+  answers: string; 
 }
 
 const App = () => {

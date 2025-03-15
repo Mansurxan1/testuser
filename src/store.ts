@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
-// Test interfeysi - Test turi aniqlanadi
 interface Test {
   id: number;
   name: string;
@@ -10,12 +9,11 @@ interface Test {
   open_test_answers_count: number | null;
   is_active: boolean;
   is_deleted: boolean;
-  answers: string; // JSON matn, masalan: "[{\"id\":1,\"answer\":\"A\"}]"
+  answers: string; 
   checked_count: number;
   created_at: string;
 }
 
-// Test yuborish ma'lumotlari uchun interfeys
 interface SubmitTestData {
   user_chat_id: string;
   user: string;
@@ -25,7 +23,6 @@ interface SubmitTestData {
   class: string;
 }
 
-// Test do'koni interfeysi - Zustand do'konining tuzilishi
 interface TestStore {
   tests: Test[];
   fetchTests: () => Promise<void>;
@@ -33,19 +30,18 @@ interface TestStore {
   submitTest: (data: SubmitTestData) => Promise<{ message: string; success: boolean }>;
 }
 
-// Zustand do'konini yaratish
 export const useTestStore = create<TestStore>((set, get) => ({
   tests: [],
   fetchTests: async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}`);
-      set({ tests: response.data }); // Testlar olingan ma'lumot bilan yangilanadi
+      set({ tests: response.data }); 
     } catch (error) {
       console.error('Testlarni olishda xato:', error);
     }
   },
   checkTest: (testId: number) => {
-    const test = get().tests.find((t) => t.id === testId); // Testlar ichidan test qidiriladi
+    const test = get().tests.find((t) => t.id === testId); 
     if (!test) {
       return { test: null, message: 'Test topilmadi!' };
     }
@@ -55,7 +51,7 @@ export const useTestStore = create<TestStore>((set, get) => ({
     return { test, message: '' };
   },
   submitTest: async (data: SubmitTestData) => {
-    const test = get().tests.find((t) => t.id === data.test_id); // Testlar ichidan test qidiriladi
+    const test = get().tests.find((t) => t.id === data.test_id); 
     if (!test) {
       return { message: 'Test topilmadi!', success: false };
     }
