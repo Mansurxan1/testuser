@@ -163,19 +163,19 @@ const App = () => {
           <div className="bg-white rounded-lg shadow-md w-96 p-6 transform scale-95 animate-pop-in">
             {checkResult ? (
               <div>
-                <p className="text-gray-800 font-semibold mb-2">
-                  {checkResult.message}. Natija: {checkResult.score}
+                <p className="text-gray-800 font-semibold mb-4">
+                  Test muvaffaqiyatli tekshirildi. Ball: {checkResult.score}/{checkResult.totalQuestions}
                 </p>
-                <ul className="text-gray-800 space-y-2">
+                <ul className="text-gray-800 space-y-3">
                   {checkResult.details.map((detail) => (
-                    <li key={detail.id}>
-                      Savol {detail.id}:{" "}
-                      <span
-                        className={
-                          detail.isCorrect ? "text-green-600" : "text-red-600"
-                        }
-                      >
+                    <li key={detail.id} className="border-b pb-2">
+                      <span className="font-medium">Savol {detail.id}:</span>{" "}
+                      <span className={detail.isCorrect ? "text-green-600" : "text-red-600"}>
                         {detail.isCorrect ? "To‘g‘ri" : "Noto‘g‘ri"}
+                      </span>
+                      <br />
+                      <span className="text-sm">
+                        Sizning javobingiz: {detail.userAnswer}
                       </span>
                     </li>
                   ))}

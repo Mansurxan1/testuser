@@ -1,6 +1,8 @@
 // store.ts
-import { create } from "zustand";
-import axios from "axios";
+import { create } from 'zustand';
+import axios from 'axios';
+
+const VITE_API_URL = import.meta.env.VITE_API_URL || 'your-api-url-here';
 
 interface User {
   id: string;
@@ -17,7 +19,11 @@ interface Test {
   name: string;
   owner_chat_id: string;
   test_count: number;
-  answers: string;
+  open_test_answers_count: number | null;
+  is_active: boolean;
+  is_deleted: boolean;
+  answers: string; // This contains the correct answers as JSON string
+  checked_count: number;
   created_at: string;
 }
 
@@ -26,116 +32,126 @@ interface Answer {
   answer: string;
 }
 
-interface SubmitTestPayload {
-  user_chat_id: string;
-  user: string;
-  test_id: number;
-  answers_json: Answer[];
-  region: string;
-  class: string;
-}
-
 interface CheckResult {
   message: string;
-  score: string;
-  details: { id: number; userAnswer: string; isCorrect: boolean }[];
+  score: number;
+  totalQuestions: number;
+  details: { id: number; isCorrect: boolean; userAnswer: string; correctAnswer: string }[];
 }
 
-interface TestState {
+interface TestStore {
   user: User | null;
-  tests: Test[];
   selectedTest: Test | null;
   checkResult: CheckResult | null;
   loading: boolean;
   error: string | null;
-  fetchUser: (chatId: string) => Promise<void>;
+  fetchUser: () => Promise<void>;
   fetchTestById: (testId: number) => Promise<void>;
-  submitTest: (payload: SubmitTestPayload) => Promise<CheckResult>;
+  submitTest: (data: {
+    user_chat_id: string;
+    user: string;
+    test_id: number;
+    answers_json: Answer[];
+    region: string;
+    class: string;
+  }) => Promise<void>;
 }
 
-const API_URL = import.meta.env.VITE_API_URL;
-
-export const useTestStore = create<TestState>((set) => ({
+export const useTestStore = create<TestStore>((set) => ({
   user: null,
-  tests: [],
   selectedTest: null,
   checkResult: null,
   loading: false,
   error: null,
 
-  fetchUser: async (chatId: string) => {
-    set({ loading: true, error: null });
+  fetchUser: async () => {
     try {
-      const response = await axios.get(`${API_URL}/users/${chatId}`);
-      set({ user: response.data.data, loading: false });
+      set({ loading: true });
+      const urlParams = new URLSearchParams(window.location.search);
+      const chatId = window.location.pathname.split('/').pop() || urlParams.get('chat_id');
+      
+      if (!chatId) throw new Error('User ID not found in URL');
+
+      const response = await axios.get(`${VITE_API_URL}/users/${chatId}`);
+      set({ user: response.data.data, error: null });
     } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : "Foydalanuvchi topilmadi",
-        loading: false,
-      });
+      set({ error: 'Foydalanuvchi ma’lumotlari yuklanmadi!' });
+    } finally {
+      set({ loading: false });
     }
   },
 
   fetchTestById: async (testId: number) => {
-    set({ loading: true, error: null, checkResult: null });
     try {
-      const response = await axios.get(`${API_URL}/tests`);
-      const tests = response.data.data as Test[];
-      const test = tests.find((t) => t.id === testId);
-      if (test) {
-        set({ selectedTest: test, loading: false });
-      } else {
-        set({
-          error: "Bu test ID uchun test topilmadi",
-          selectedTest: null,
-          loading: false,
-        });
+      set({ loading: true });
+      const response = await axios.get(`${VITE_API_URL}/tests`);
+      const tests = response.data.data;
+      const test = tests.find((t: Test) => t.id === testId);
+      
+      if (!test) {
+        throw new Error('Test topilmadi!');
       }
+      
+      set({ selectedTest: test, error: null });
     } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : "Testni olishda xatolik",
-        loading: false,
-      });
+      set({ error: error.message || 'Test yuklanmadi!' });
+    } finally {
+      set({ loading: false });
     }
   },
 
-  submitTest: async (payload: SubmitTestPayload) => {
-    set({ loading: true, error: null });
+  submitTest: async (data) => {
     try {
-      const response = await axios.post(`${API_URL}/tests/check`, payload, {
+      set({ loading: true });
+      
+      // First, get the correct answers from the selected test
+      const selectedTest = useTestStore.getState().selectedTest;
+      if (!selectedTest) {
+        throw new Error('Test tanlanmagan!');
+      }
+
+      const correctAnswers: Answer[] = JSON.parse(selectedTest.answers);
+      
+      // Compare user answers with correct answers
+      const checkDetails = data.answers_json.map((userAnswer) => {
+        const correctAnswer = correctAnswers.find(ca => ca.id === userAnswer.id);
+        const isCorrect = correctAnswer?.answer.toLowerCase() === userAnswer.answer.toLowerCase();
+        
+        return {
+          id: userAnswer.id,
+          isCorrect,
+          userAnswer: userAnswer.answer,
+          correctAnswer: correctAnswer?.answer || 'Noma’lum'
+        };
+      });
+
+      const score = checkDetails.filter(detail => detail.isCorrect).length;
+      const totalQuestions = checkDetails.length;
+
+      // Submit to API
+      const response = await axios.post(`${VITE_API_URL}/tests/check`, data, {
         headers: {
-          Accept: "*/*",
-          "Content-Type": "application/json",
+          'Accept': '*/*',
+          'Content-Type': 'application/json',
         },
       });
-      const test = (await axios.get(`${API_URL}/tests`)).data.data.find(
-        (t: Test) => t.id === payload.test_id
-      );
-      const correctAnswers = JSON.parse(test.answers);
-      const checkResult: CheckResult = {
-        message: "Test muvaffaqiyatli tekshirildi",
-        score: response.data.score || `${payload.answers_json.filter((ans) => correctAnswers.find((ca: Answer) => ca.id === ans.id && ca.answer === ans.answer)).length}/${payload.answers_json.length}`,
-        details: payload.answers_json.map((ans) => {
-          const correct = correctAnswers.find((ca: Answer) => ca.id === ans.id);
-          return {
-            id: ans.id,
-            userAnswer: ans.answer,
-            isCorrect: ans.answer === correct.answer,
-          };
-        }),
-      };
-      set({ checkResult, loading: false });
-      return checkResult;
-    } catch (error) {
+
       set({
-        error: error instanceof Error ? error.message : "Javoblarni yuborishda xatolik",
-        loading: false,
+        checkResult: {
+          message: response.data.message || 'Test muvaffaqiyatli tekshirildi!',
+          score,
+          totalQuestions,
+          details: checkDetails,
+        },
+        error: null,
       });
-      return {
-        message: "Javoblarni yuborishda xatolik yuz berdi",
-        score: "0/0",
-        details: [],
-      };
+    } catch (error) {
+      set({ error: 'Test yuborishda xatolik yuz berdi!' });
+    } finally {
+      set({ loading: false });
     }
   },
 }));
+
+// Initialize user data when store is created
+useTestStore.getState().fetchUser();
