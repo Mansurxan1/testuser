@@ -1,4 +1,3 @@
-// App.tsx
 import { useState, useEffect } from "react";
 import { useTestStore } from "./store";
 

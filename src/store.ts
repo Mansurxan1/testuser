@@ -1,8 +1,7 @@
-// store.ts
 import { create } from 'zustand';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
-const VITE_API_URL = import.meta.env.VITE_API_URL || 'your-api-url-here';
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 
 interface User {
   id: string;
@@ -22,7 +21,7 @@ interface Test {
   open_test_answers_count: number | null;
   is_active: boolean;
   is_deleted: boolean;
-  answers: string; // This contains the correct answers as JSON string
+  answers: string;
   checked_count: number;
   created_at: string;
 }
@@ -75,7 +74,8 @@ export const useTestStore = create<TestStore>((set) => ({
       const response = await axios.get(`${VITE_API_URL}/users/${chatId}`);
       set({ user: response.data.data, error: null });
     } catch (error) {
-      set({ error: 'Foydalanuvchi ma’lumotlari yuklanmadi!' });
+      const err = error as AxiosError;
+      set({ error: err.message || 'Foydalanuvchi ma’lumotlari yuklanmadi!' });
     } finally {
       set({ loading: false });
     }
@@ -94,7 +94,8 @@ export const useTestStore = create<TestStore>((set) => ({
       
       set({ selectedTest: test, error: null });
     } catch (error) {
-      set({ error: error.message || 'Test yuklanmadi!' });
+      const err = error as AxiosError;
+      set({ error: err.message || 'Test yuklanmadi!' });
     } finally {
       set({ loading: false });
     }
@@ -104,7 +105,6 @@ export const useTestStore = create<TestStore>((set) => ({
     try {
       set({ loading: true });
       
-      // First, get the correct answers from the selected test
       const selectedTest = useTestStore.getState().selectedTest;
       if (!selectedTest) {
         throw new Error('Test tanlanmagan!');
@@ -112,7 +112,6 @@ export const useTestStore = create<TestStore>((set) => ({
 
       const correctAnswers: Answer[] = JSON.parse(selectedTest.answers);
       
-      // Compare user answers with correct answers
       const checkDetails = data.answers_json.map((userAnswer) => {
         const correctAnswer = correctAnswers.find(ca => ca.id === userAnswer.id);
         const isCorrect = correctAnswer?.answer.toLowerCase() === userAnswer.answer.toLowerCase();
@@ -128,7 +127,6 @@ export const useTestStore = create<TestStore>((set) => ({
       const score = checkDetails.filter(detail => detail.isCorrect).length;
       const totalQuestions = checkDetails.length;
 
-      // Submit to API
       const response = await axios.post(`${VITE_API_URL}/tests/check`, data, {
         headers: {
           'Accept': '*/*',
@@ -146,12 +144,12 @@ export const useTestStore = create<TestStore>((set) => ({
         error: null,
       });
     } catch (error) {
-      set({ error: 'Test yuborishda xatolik yuz berdi!' });
+      const err = error as AxiosError;
+      set({ error: err.message || 'Test yuborishda xatolik yuz berdi!' });
     } finally {
       set({ loading: false });
     }
   },
 }));
 
-// Initialize user data when store is created
 useTestStore.getState().fetchUser();
