@@ -7,39 +7,90 @@ interface Answer {
 }
 
 const App = () => {
-  const { user, selectedTest, checkResult, loading, error, fetchTestById, submitTest } =
-    useTestStore();
+  const { user, selectedTest,  loading, error, fetchUser, fetchTestById, checkUserTestResult, submitTest } = useTestStore();
   const [testId, setTestId] = useState<number | "">("");
   const [userAnswers, setUserAnswers] = useState<Answer[]>([]);
   const [modalMessage, setModalMessage] = useState<string>("");
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [canTakeTest, setCanTakeTest] = useState(false);
+  const [emptyFields, setEmptyFields] = useState<number[]>([]);
 
-  const handleFetchTest = () => {
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  const handleFetchTest = async () => {
     if (!testId) {
       setModalMessage("Iltimos, test ID sini kiriting!");
       setShowMessageModal(true);
       return;
     }
-    fetchTestById(Number(testId));
+    if (!user) {
+      setModalMessage("Foydalanuvchi ma'lumotlari yuklanmadi!");
+      setShowMessageModal(true);
+      return;
+    }
+
+    console.log('Test olish jarayoni boshlandi, ID:', testId);
+    await fetchTestById(Number(testId));
   };
 
   useEffect(() => {
-    if (selectedTest) {
-      try {
-        const parsedAnswers = JSON.parse(selectedTest.answers) as { id: number }[];
-        setUserAnswers(parsedAnswers.map((ans) => ({ id: ans.id, answer: "" })));
-      } catch (error) {
-        setModalMessage("Test javoblari noto‘g‘ri formatda!");
-        setShowMessageModal(true);
+    const checkTestConditions = async () => {
+      if (!selectedTest || !user) {
+        console.log('Hali tanlangan test yoki foydalanuvchi yo‘q');
+        return;
       }
-    }
-  }, [selectedTest]);
+
+      console.log('Test shartlari tekshirilmoqda:', selectedTest);
+
+      if (!selectedTest.is_active) {
+        console.log('Test faol emas');
+        setModalMessage("Bu test yopilgan!");
+        setShowMessageModal(true);
+        setTestId("");
+        setCanTakeTest(false);
+        return;
+      }
+
+      if (selectedTest.is_private) {
+        try {
+          const hasTakenTest = await checkUserTestResult(user.chat_id, selectedTest.id);
+          console.log('Test oldin yechilganmi:', hasTakenTest);
+          if (hasTakenTest) {
+            setModalMessage("Siz avval bu testni tekshirgansiz!");
+            setShowMessageModal(true);
+            setCanTakeTest(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Natija tekshirishda xatolik yuz berdi:', error);
+          setModalMessage("Test holatini tekshirishda xatolik!");
+          setShowMessageModal(true);
+          setCanTakeTest(false);
+          return;
+        }
+      }
+
+      console.log('Testni yechishga ruxsat berildi');
+      setUserAnswers(selectedTest.answers_json.map((ans) => ({ id: ans.id, answer: "" })));
+      setCanTakeTest(true);
+    };
+
+    checkTestConditions();
+  }, [selectedTest, user, checkUserTestResult]);
 
   const handleAnswerChange = (index: number, value: string) => {
     const updatedAnswers = [...userAnswers];
     updatedAnswers[index].answer = value;
     setUserAnswers(updatedAnswers);
+
+    if (value.trim() === "") {
+      setEmptyFields((prev) => [...prev, updatedAnswers[index].id].filter((id, i, arr) => arr.indexOf(id) === i));
+    } else {
+      setEmptyFields((prev) => prev.filter((id) => id !== updatedAnswers[index].id));
+    }
   };
 
   const handleSubmit = async () => {
@@ -49,6 +100,17 @@ const App = () => {
       return;
     }
 
+    const allAnswered = userAnswers.every(answer => answer.answer.trim() !== "");
+    if (!allAnswered) {
+      const empty = userAnswers
+        .filter(answer => answer.answer.trim() === "")
+        .map(answer => answer.id);
+      setEmptyFields(empty);
+      console.log('To‘ldirilmagan savollar:', empty);
+      return;
+    }
+
+    console.log('Test javoblari yuborilmoqda:', userAnswers);
     await submitTest({
       user_chat_id: user.chat_id,
       user: user.full_name,
@@ -57,7 +119,25 @@ const App = () => {
       region: user.region,
       class: user.class,
     });
-    setShowMessageModal(true);
+
+    setTimeout(() => {
+      const updatedCheckResult = useTestStore.getState().checkResult;
+      if (updatedCheckResult) {
+        setModalMessage(`Siz ${updatedCheckResult.totalQuestions} tadan ${updatedCheckResult.score} ta testni to'g'ri yechdingiz!`);
+      } else {
+        setModalMessage("Natija yuklanmadi!");
+      }
+      setShowMessageModal(true);
+      setEmptyFields([]);
+    }, 100);
+  };
+
+  const closeModal = () => {
+    console.log('Modal yopilmoqda');
+    setShowMessageModal(false);
+    setTestId("");
+    setUserAnswers([]);
+    setCanTakeTest(false);
   };
 
   return (
@@ -68,6 +148,7 @@ const App = () => {
         <button
           onClick={() => setShowProfileModal(true)}
           className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200"
+          disabled={!user}
         >
           Profil
         </button>
@@ -97,7 +178,7 @@ const App = () => {
           </p>
         )}
 
-        {selectedTest && (
+        {selectedTest && canTakeTest && (
           <div className="mt-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">{selectedTest.name}</h2>
             {userAnswers.map((answer, index) => (
@@ -112,6 +193,9 @@ const App = () => {
                   onChange={(e) => handleAnswerChange(index, e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
+                {emptyFields.includes(answer.id) && (
+                  <p className="text-red-600 text-sm mt-1">To'ldirish kerak!</p>
+                )}
               </div>
             ))}
             <button
@@ -131,18 +215,10 @@ const App = () => {
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Foydalanuvchi Profili</h2>
             {user ? (
               <div className="space-y-4 text-gray-800">
-                <p className="flex items-center">
-                  <span className="font-semibold text-gray-700 w-28">Ism:</span> {user.full_name}
-                </p>
-                <p className="flex items-center">
-                  <span className="font-semibold text-gray-700 w-28">Chat ID:</span> {user.chat_id}
-                </p>
-                <p className="flex items-center">
-                  <span className="font-semibold text-gray-700 w-28">Hudud:</span> {user.region}
-                </p>
-                <p className="flex items-center">
-                  <span className="font-semibold text-gray-700 w-28">Sinf:</span> {user.class}
-                </p>
+                <p className="flex items-center"><span className="font-semibold text-gray-700 w-28">Ism:</span> {user.full_name}</p>
+                <p className="flex items-center"><span className="font-semibold text-gray-700 w-28">Chat ID:</span> {user.chat_id}</p>
+                <p className="flex items-center"><span className="font-semibold text-gray-700 w-28">Hudud:</span> {user.region}</p>
+                <p className="flex items-center"><span className="font-semibold text-gray-700 w-28">Sinf:</span> {user.class}</p>
               </div>
             ) : (
               <p className="text-gray-500 italic">Ma’lumotlar yuklanmoqda...</p>
@@ -160,31 +236,9 @@ const App = () => {
       {showMessageModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
           <div className="bg-white rounded-lg shadow-md w-96 p-6 transform scale-95 animate-pop-in">
-            {checkResult ? (
-              <div>
-                <p className="text-gray-800 font-semibold mb-4">
-                  Test muvaffaqiyatli tekshirildi. Ball: {checkResult.score}/{checkResult.totalQuestions}
-                </p>
-                <ul className="text-gray-800 space-y-3">
-                  {checkResult.details.map((detail) => (
-                    <li key={detail.id} className="border-b pb-2">
-                      <span className="font-medium">Savol {detail.id}:</span>{" "}
-                      <span className={detail.isCorrect ? "text-green-600" : "text-red-600"}>
-                        {detail.isCorrect ? "To‘g‘ri" : "Noto‘g‘ri"}
-                      </span>
-                      <br />
-                      <span className="text-sm">
-                        Sizning javobingiz: {detail.userAnswer}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <pre className="text-gray-800 whitespace-pre-wrap mb-4">{modalMessage}</pre>
-            )}
+            <pre className="text-gray-800 whitespace-pre-wrap mb-4">{modalMessage}</pre>
             <button
-              onClick={() => setShowMessageModal(false)}
+              onClick={closeModal}
               className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-all duration-200"
             >
               Yopish

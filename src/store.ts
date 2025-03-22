@@ -21,9 +21,11 @@ interface Test {
   open_test_answers_count: number | null;
   is_active: boolean;
   is_deleted: boolean;
+  is_private: boolean;
   answers: string;
   checked_count: number;
   created_at: string;
+  answers_json: Answer[];
 }
 
 interface Answer {
@@ -44,8 +46,9 @@ interface TestStore {
   checkResult: CheckResult | null;
   loading: boolean;
   error: string | null;
-  fetchUser: () => Promise<void>;
+  fetchUser: (chatId?: string) => Promise<void>;
   fetchTestById: (testId: number) => Promise<void>;
+  checkUserTestResult: (userChatId: string, testId: number) => Promise<boolean>;
   submitTest: (data: {
     user_chat_id: string;
     user: string;
@@ -63,18 +66,19 @@ export const useTestStore = create<TestStore>((set) => ({
   loading: false,
   error: null,
 
-  fetchUser: async () => {
+  fetchUser: async (chatId?: string) => {
     try {
       set({ loading: true });
-      const urlParams = new URLSearchParams(window.location.search);
-      const chatId = window.location.pathname.split('/').pop() || urlParams.get('chat_id');
-      
-      if (!chatId) throw new Error('User ID not found in URL');
-
-      const response = await axios.get(`${VITE_API_URL}/users/${chatId}`);
+      const urlChatId = window.location.pathname.split('/').pop() || new URLSearchParams(window.location.search).get('chat_id');
+      const finalChatId = chatId || urlChatId;
+      console.log('Foydalanuvchi chatId bilan olinmoqda:', finalChatId);
+      if (!finalChatId) throw new Error('Chat ID URLda topilmadi va berilmadi!');
+      const response = await axios.get(`${VITE_API_URL}/users/${finalChatId}`);
+      console.log('Foydalanuvchi muvaffaqiyatli olindi:', response.data.data);
       set({ user: response.data.data, error: null });
     } catch (error) {
       const err = error as AxiosError;
+      console.error('Foydalanuvchi olishda xatolik:', err.message);
       set({ error: err.message || 'Foydalanuvchi ma’lumotlari yuklanmadi!' });
     } finally {
       set({ loading: false });
@@ -84,55 +88,59 @@ export const useTestStore = create<TestStore>((set) => ({
   fetchTestById: async (testId: number) => {
     try {
       set({ loading: true });
-      const response = await axios.get(`${VITE_API_URL}/tests`);
-      const tests = response.data.data;
-      const test = tests.find((t: Test) => t.id === testId);
-      
-      if (!test) {
-        throw new Error('Test topilmadi!');
-      }
-      
+      console.log('Test ID bilan olinmoqda:', testId);
+      const response = await axios.get(`${VITE_API_URL}/tests/${testId}`);
+      const test = response.data.data;
+      console.log('Test muvaffaqiyatli olindi:', test);
+      if (!test) throw new Error('Test topilmadi!');
       set({ selectedTest: test, error: null });
     } catch (error) {
       const err = error as AxiosError;
+      console.error('Test olishda xatolik:', err.message);
       set({ error: err.message || 'Test yuklanmadi!' });
     } finally {
       set({ loading: false });
     }
   },
 
+  checkUserTestResult: async (userChatId: string, testId: number) => {
+    try {
+      console.log('Foydalanuvchi natijasi tekshirilmoqda, user:', userChatId, 'test:', testId);
+      const response = await axios.get(`${VITE_API_URL}/results/${userChatId}/${testId}`);
+      console.log('Natija javobi:', response.data);
+      return response.status === 200 && response.data.data !== null;
+    } catch (error) {
+      const err = error as AxiosError;
+      console.error('Natija tekshirishda xatolik:', err.response?.status, err.message);
+      if (err.response?.status === 404) {
+        console.log('Oldingi natija topilmadi');
+        return false;
+      }
+      throw error;
+    }
+  },
+
   submitTest: async (data) => {
     try {
       set({ loading: true });
-      
+      console.log('Test yuborilmoqda:', data);
       const selectedTest = useTestStore.getState().selectedTest;
-      if (!selectedTest) {
-        throw new Error('Test tanlanmagan!');
-      }
+      if (!selectedTest) throw new Error('Test tanlanmagan!');
 
-      const correctAnswers: Answer[] = JSON.parse(selectedTest.answers);
-      
+      const correctAnswers: Answer[] = selectedTest.answers_json;
       const checkDetails = data.answers_json.map((userAnswer) => {
         const correctAnswer = correctAnswers.find(ca => ca.id === userAnswer.id);
         const isCorrect = correctAnswer?.answer.toLowerCase() === userAnswer.answer.toLowerCase();
-        
-        return {
-          id: userAnswer.id,
-          isCorrect,
-          userAnswer: userAnswer.answer,
-          correctAnswer: correctAnswer?.answer || 'Noma’lum'
-        };
+        return { id: userAnswer.id, isCorrect, userAnswer: userAnswer.answer, correctAnswer: correctAnswer?.answer || 'Noma’lum' };
       });
 
       const score = checkDetails.filter(detail => detail.isCorrect).length;
       const totalQuestions = checkDetails.length;
 
       const response = await axios.post(`${VITE_API_URL}/tests/check`, data, {
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Accept': '*/*', 'Content-Type': 'application/json' },
       });
+      console.log('Yuborish javobi:', response.data);
 
       set({
         checkResult: {
@@ -145,11 +153,10 @@ export const useTestStore = create<TestStore>((set) => ({
       });
     } catch (error) {
       const err = error as AxiosError;
+      console.error('Yuborishda xatolik:', err.message);
       set({ error: err.message || 'Test yuborishda xatolik yuz berdi!' });
     } finally {
       set({ loading: false });
     }
   },
 }));
-
-useTestStore.getState().fetchUser();
