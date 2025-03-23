@@ -91,6 +91,11 @@ const App = () => {
     } else {
       setEmptyFields((prev) => prev.filter((id) => id !== updatedAnswers[index].id));
     }
+
+    const inputElement = document.querySelector(`input[data-index="${index}"]`);
+    if (inputElement) {
+      inputElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   };
 
   const handleSubmit = async () => {
@@ -140,8 +145,20 @@ const App = () => {
     setCanTakeTest(false);
   };
 
+  useEffect(() => {
+    const handleResize = () => {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && activeElement.tagName === "INPUT") {
+        activeElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 p-8 flex flex-col items-center">
+    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-8 flex flex-col items-center overflow-auto" style={{ minHeight: "100vh" }}>
       <h1 className="text-4xl font-bold text-gray-900 mb-8">Test Sahifasi</h1>
 
       <div className="w-full max-w-md mb-6">
@@ -191,6 +208,7 @@ const App = () => {
                   placeholder="Javobingizni kiriting"
                   value={answer.answer}
                   onChange={(e) => handleAnswerChange(index, e.target.value)}
+                  data-index={index} // Scroll uchun qo'shildi
                   className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
                 {emptyFields.includes(answer.id) && (
