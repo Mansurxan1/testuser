@@ -127,25 +127,33 @@ export const useTestStore = create<TestStore>((set) => ({
       const selectedTest = useTestStore.getState().selectedTest;
       if (!selectedTest) throw new Error('Test tanlanmagan!');
 
-      const correctAnswers: Answer[] = selectedTest.answers_json;
-      const checkDetails = data.answers_json.map((userAnswer) => {
-        const correctAnswer = correctAnswers.find(ca => ca.id === userAnswer.id);
-        const isCorrect = correctAnswer?.answer.toLowerCase() === userAnswer.answer.toLowerCase();
-        return { id: userAnswer.id, isCorrect, userAnswer: userAnswer.answer, correctAnswer: correctAnswer?.answer || 'Noma’lum' };
-      });
-
-      const score = checkDetails.filter(detail => detail.isCorrect).length;
-      const totalQuestions = checkDetails.length;
-
       const response = await axios.post(`${VITE_API_URL}/tests/check`, data, {
         headers: { 'Accept': '*/*', 'Content-Type': 'application/json' },
       });
       console.log('Yuborish javobi:', response.data);
 
+      // Extract result and other details from the API response
+      const { result, answers } = response.data.data;
+      const totalQuestions = selectedTest.answers_json.length;
+
+      // Parse answers from the API response (assuming it's a stringified JSON)
+      const userAnswers = JSON.parse(answers);
+      const correctAnswers = selectedTest.answers_json;
+      const checkDetails = userAnswers.map((userAnswer: Answer) => {
+        const correctAnswer = correctAnswers.find(ca => ca.id === userAnswer.id);
+        const isCorrect = correctAnswer?.answer.toLowerCase() === userAnswer.answer.toLowerCase();
+        return {
+          id: userAnswer.id,
+          isCorrect,
+          userAnswer: userAnswer.answer,
+          correctAnswer: correctAnswer?.answer || 'Noma’lum',
+        };
+      });
+
       set({
         checkResult: {
           message: response.data.message || 'Test muvaffaqiyatli tekshirildi!',
-          score,
+          score: result, // Use the result from the API response
           totalQuestions,
           details: checkDetails,
         },

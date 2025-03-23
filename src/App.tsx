@@ -7,7 +7,7 @@ interface Answer {
 }
 
 const App = () => {
-  const { user, selectedTest,  loading, error, fetchUser, fetchTestById, checkUserTestResult, submitTest } = useTestStore();
+  const { user, selectedTest, loading, error, fetchUser, fetchTestById, checkUserTestResult, submitTest } = useTestStore();
   const [testId, setTestId] = useState<number | "">("");
   const [userAnswers, setUserAnswers] = useState<Answer[]>([]);
   const [modalMessage, setModalMessage] = useState<string>("");
