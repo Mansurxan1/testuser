@@ -22,8 +22,8 @@ const App = () => {
 
   useEffect(() => {
     if (error) {
-      setModalMessage(error); 
-      setShowMessageModal(true); 
+      setModalMessage(error);
+      setShowMessageModal(true);
       setTestId(""); 
     }
   }, [error]);
@@ -108,7 +108,7 @@ const App = () => {
 
   const handleSubmit = async () => {
     if (!selectedTest || !user) {
-      setModalMessage("Test yoki foydalanuvchi ma'lumotlari topilmadi!");
+      setModalMessage("Test yoki foydalanuvchi ma’lumotlari topilmadi!");
       setShowMessageModal(true);
       return;
     }
@@ -119,7 +119,7 @@ const App = () => {
         .filter(answer => answer.answer.trim() === "")
         .map(answer => answer.id);
       setEmptyFields(empty);
-      console.log("To'ldirilmagan savollar:", empty);
+      console.log('To‘ldirilmagan savollar:', empty);
       return;
     }
 
@@ -151,6 +151,7 @@ const App = () => {
     setTestId("");
     setUserAnswers([]);
     setCanTakeTest(false);
+    useTestStore.setState({ error: null }); // Error ni tozalash
   };
 
   useEffect(() => {
@@ -241,7 +242,7 @@ const App = () => {
                 <p className="flex items-center"><span className="font-semibold text-gray-700 w-28">Sinf:</span> {user.class}</p>
               </div>
             ) : (
-              <p className="text-gray-500 italic">Ma'lumotlar yuklanmoqda...</p>
+              <p className="text-gray-500 italic">Ma’lumotlar yuklanmoqda...</p>
             )}
             <button
               onClick={() => setShowProfileModal(false)}
