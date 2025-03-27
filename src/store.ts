@@ -93,9 +93,10 @@ export const useTestStore = create<TestStore>((set) => ({
       const test = response.data.data;
       console.log('Test muvaffaqiyatli olindi:', test);
       if (!test) throw new Error('Test topilmadi!');
+      if (test.is_deleted) throw new Error('Bu test mavjud emas!'); 
       set({ selectedTest: test, error: null });
     } catch (error) {
-      const err = error as AxiosError;
+      const err = error as AxiosError | Error;
       console.error('Test olishda xatolik:', err.message);
       set({ error: err.message || 'Test yuklanmadi!' });
     } finally {
@@ -132,11 +133,9 @@ export const useTestStore = create<TestStore>((set) => ({
       });
       console.log('Yuborish javobi:', response.data);
 
-      // Extract result and other details from the API response
       const { result, answers } = response.data.data;
       const totalQuestions = selectedTest.answers_json.length;
 
-      // Parse answers from the API response (assuming it's a stringified JSON)
       const userAnswers = JSON.parse(answers);
       const correctAnswers = selectedTest.answers_json;
       const checkDetails = userAnswers.map((userAnswer: Answer) => {
@@ -153,7 +152,7 @@ export const useTestStore = create<TestStore>((set) => ({
       set({
         checkResult: {
           message: response.data.message || 'Test muvaffaqiyatli tekshirildi!',
-          score: result, // Use the result from the API response
+          score: result,
           totalQuestions,
           details: checkDetails,
         },

@@ -20,6 +20,14 @@ const App = () => {
     fetchUser();
   }, [fetchUser]);
 
+  useEffect(() => {
+    if (error) {
+      setModalMessage(error); 
+      setShowMessageModal(true); 
+      setTestId(""); 
+    }
+  }, [error]);
+
   const handleFetchTest = async () => {
     if (!testId) {
       setModalMessage("Iltimos, test ID sini kiriting!");
@@ -100,7 +108,7 @@ const App = () => {
 
   const handleSubmit = async () => {
     if (!selectedTest || !user) {
-      setModalMessage("Test yoki foydalanuvchi ma’lumotlari topilmadi!");
+      setModalMessage("Test yoki foydalanuvchi ma'lumotlari topilmadi!");
       setShowMessageModal(true);
       return;
     }
@@ -111,7 +119,7 @@ const App = () => {
         .filter(answer => answer.answer.trim() === "")
         .map(answer => answer.id);
       setEmptyFields(empty);
-      console.log('To‘ldirilmagan savollar:', empty);
+      console.log("To'ldirilmagan savollar:", empty);
       return;
     }
 
@@ -189,12 +197,6 @@ const App = () => {
           </button>
         </div>
 
-        {error && (
-          <p className="text-red-600 text-center mb-4 bg-red-100 p-2 rounded-lg border border-red-300">
-            {error}
-          </p>
-        )}
-
         {selectedTest && canTakeTest && (
           <div className="mt-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">{selectedTest.name}</h2>
@@ -208,7 +210,7 @@ const App = () => {
                   placeholder="Javobingizni kiriting"
                   value={answer.answer}
                   onChange={(e) => handleAnswerChange(index, e.target.value)}
-                  data-index={index} // Scroll uchun qo'shildi
+                  data-index={index}
                   className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
                 {emptyFields.includes(answer.id) && (
@@ -239,7 +241,7 @@ const App = () => {
                 <p className="flex items-center"><span className="font-semibold text-gray-700 w-28">Sinf:</span> {user.class}</p>
               </div>
             ) : (
-              <p className="text-gray-500 italic">Ma’lumotlar yuklanmoqda...</p>
+              <p className="text-gray-500 italic">Ma'lumotlar yuklanmoqda...</p>
             )}
             <button
               onClick={() => setShowProfileModal(false)}
